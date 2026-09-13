@@ -1,7 +1,16 @@
 /**
- * Simple in-memory store for OAuth clients, codes, and tokens.
- * For production: replace with Postgres / Supabase / MongoDB.
+ * In-memory store for Users + OAuth clients/codes/tokens.
+ * Production: replace with Postgres / Supabase / MongoDB.
  */
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+  createdAt: string;
+  provider?: string; // "credentials" | "google" | "github"
+}
 
 export interface OAuthClient {
   id: string;
@@ -10,7 +19,6 @@ export interface OAuthClient {
   clientSecret: string;
   redirectUris: string[];
   createdAt: string;
-  // Optional provider configs (for future use)
   googleClientId?: string;
   googleClientSecret?: string;
   githubClientId?: string;
@@ -38,31 +46,39 @@ export interface AccessToken {
   expiresAt: number;
 }
 
-// Global store (survives in same serverless instance, resets on cold start)
 const globalForStore = globalThis as unknown as {
+  users: Map<string, User>;
+  usersByEmail: Map<string, User>;
   oauthClients: Map<string, OAuthClient>;
   authCodes: Map<string, AuthCode>;
   accessTokens: Map<string, AccessToken>;
 };
 
-if (!globalForStore.oauthClients) {
+if (!globalForStore.users) {
+  globalForStore.users = new Map();
+  globalForStore.usersByEmail = new Map();
   globalForStore.oauthClients = new Map();
   globalForStore.authCodes = new Map();
   globalForStore.accessTokens = new Map();
 }
 
+export const users = globalForStore.users;
+export const usersByEmail = globalForStore.usersByEmail;
 export const clients = globalForStore.oauthClients;
 export const authCodes = globalForStore.authCodes;
 export const accessTokens = globalForStore.accessTokens;
 
-// Seed a demo client
+// Seed demo OAuth client
 if (clients.size === 0) {
   const demoClient: OAuthClient = {
     id: "demo-1",
     name: "Demo App",
     clientId: "demo_client_id_12345",
     clientSecret: "demo_client_secret_67890",
-    redirectUris: ["http://localhost:3001/callback", "https://example.com/callback"],
+    redirectUris: [
+      "http://localhost:3001/callback",
+      "https://example.com/callback",
+    ],
     createdAt: new Date().toISOString(),
   };
   clients.set(demoClient.clientId, demoClient);
