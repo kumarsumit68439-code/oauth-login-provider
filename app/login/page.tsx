@@ -2,12 +2,18 @@
 
 import { signIn, useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 
 function LoginContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const clientId = searchParams.get("client_id");
   const redirectUri = searchParams.get("redirect_uri");
@@ -15,18 +21,41 @@ function LoginContent() {
   const state = searchParams.get("state") || "";
   const responseType = searchParams.get("response_type") || "code";
 
+  const oauthCallbackUrl =
+    clientId && redirectUri
+      ? `/api/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}&response_type=${responseType}&scope=${encodeURIComponent(
+          scope
+        )}&state=${state}`
+      : "/dashboard";
+
   useEffect(() => {
     if (status === "authenticated" && clientId && redirectUri) {
-      // Already logged in → go back to authorize
-      const url = new URL("/api/oauth/authorize", window.location.origin);
-      url.searchParams.set("client_id", clientId);
-      url.searchParams.set("redirect_uri", redirectUri);
-      url.searchParams.set("response_type", responseType);
-      url.searchParams.set("scope", scope);
-      if (state) url.searchParams.set("state", state);
-      window.location.href = url.toString();
+      window.location.href = oauthCallbackUrl;
     }
-  }, [status, clientId, redirectUri, scope, state, responseType]);
+  }, [status, clientId, redirectUri, oauthCallbackUrl]);
+
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    if (result?.error) {
+      setError("Invalid email or password");
+      setLoading(false);
+      return;
+    }
+
+    // Success → go to OAuth flow or dashboard
+    window.location.href = oauthCallbackUrl;
+  };
 
   if (status === "loading") {
     return (
@@ -44,22 +73,69 @@ function LoginContent() {
           <p className="text-gray-500 mt-1">
             {clientId
               ? "Continue to authorize the application"
-              : "Choose an account to continue"}
+              : "Apne account se login karo"}
           </p>
         </div>
 
-        {/* Choose Account style buttons */}
+        {/* ===== Own Email/Password Login ===== */}
+        <form onSubmit={handleCredentialsLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@example.com"
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="••••••••"
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary-600 text-white py-3 rounded-xl font-medium hover:bg-primary-700 disabled:opacity-50 transition"
+          >
+            {loading ? "Signing in..." : "Login with Email"}
+          </button>
+        </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">or choose account</span>
+          </div>
+        </div>
+
+        {/* ===== Social Logins ===== */}
         <div className="space-y-3">
           <button
             onClick={() =>
-              signIn("google", {
-                callbackUrl:
-                  clientId && redirectUri
-                    ? `/api/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-                        redirectUri
-                      )}&response_type=code&scope=${scope}&state=${state}`
-                    : "/dashboard",
-              })
+              signIn("google", { callbackUrl: oauthCallbackUrl })
             }
             className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-xl hover:bg-gray-50 transition font-medium"
           >
@@ -86,14 +162,7 @@ function LoginContent() {
 
           <button
             onClick={() =>
-              signIn("github", {
-                callbackUrl:
-                  clientId && redirectUri
-                    ? `/api/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-                        redirectUri
-                      )}&response_type=code&scope=${scope}&state=${state}`
-                    : "/dashboard",
-              })
+              signIn("github", { callbackUrl: oauthCallbackUrl })
             }
             className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-xl hover:bg-gray-50 transition font-medium"
           >
@@ -103,19 +172,11 @@ function LoginContent() {
             Continue with GitHub
           </button>
 
-          {/* Placeholders for Firebase / Supabase / Phone */}
           <button
             disabled
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-dashed border-gray-300 rounded-xl text-gray-400 cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-dashed border-gray-300 rounded-xl text-gray-400 cursor-not-allowed text-sm"
           >
-            Firebase / Phone Login (coming soon)
-          </button>
-
-          <button
-            disabled
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-dashed border-gray-300 rounded-xl text-gray-400 cursor-not-allowed"
-          >
-            Supabase Login (coming soon)
+            Phone / Firebase OTP (soon)
           </button>
         </div>
 
@@ -124,6 +185,16 @@ function LoginContent() {
             Logged in as {session.user?.email}
           </p>
         )}
+
+        <p className="text-center text-sm text-gray-500">
+          Naya account?{" "}
+          <Link
+            href="/signup"
+            className="text-primary-600 font-medium hover:underline"
+          >
+            Sign Up
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -131,7 +202,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
