@@ -1,29 +1,37 @@
-# OAuth Login Provider
+# Own Login System + OAuth Login Provider
 
-Apni website ko **OAuth 2.0 Identity Provider** banao.
-
-Dusri websites isse Google, GitHub (aur baad mein Firebase / Supabase / Phone) login le sakti hain.
+**Khud ka complete login system** + **dusri websites ke liye OAuth 2.0 Login Provider**.
 
 ## Features
 
-- **Dashboard** – Client ID, Client Secret, Callback URL create & save
+### Own Login System
+- Email + Password **Sign Up** & **Login**
+- Google Login
+- GitHub Login
+- Choose Account style page
+- JWT session (NextAuth)
+
+### Login Provider (for other websites)
+- Dashboard – Client ID, Client Secret, Callback URL create & save
 - **Test Login** button
-- **Choose Account** style login page (Google + GitHub)
 - OAuth 2.0 Authorization Code flow
 - JWT + Bearer token generation
 - `/api/userinfo` endpoint
-- Hooks ready (Next.js App Router API routes)
 
 ## Quick Start
 
 ```bash
 npm install
 cp .env.example .env.local
-# Fill Google & GitHub credentials + secrets
+# Fill secrets (Google/GitHub optional for email login)
 npm run dev
 ```
 
 Open http://localhost:3000
+
+- `/signup` – Naya account banao
+- `/login` – Login (Email / Google / GitHub)
+- `/dashboard` – OAuth clients manage karo
 
 ## Environment Variables
 
@@ -32,58 +40,46 @@ Open http://localhost:3000
 | `NEXTAUTH_URL` | Your site URL |
 | `NEXTAUTH_SECRET` | Random secret for NextAuth |
 | `JWT_SECRET` | Secret for signing access tokens |
-| `GOOGLE_CLIENT_ID` / `SECRET` | From Google Cloud Console |
-| `GITHUB_CLIENT_ID` / `SECRET` | From GitHub Developer Settings |
+| `GOOGLE_CLIENT_ID` / `SECRET` | Optional – Google login |
+| `GITHUB_CLIENT_ID` / `SECRET` | Optional – GitHub login |
 
-## How other apps use this provider
+> Email/Password login ke liye Google/GitHub credentials zaroori nahi.
+
+## How other apps use this as Login Provider
 
 1. Dashboard se naya client banao → Client ID + Secret + Callback URL mil jayega
 2. User ko redirect karo:
    ```
    GET /api/oauth/authorize?client_id=xxx&redirect_uri=https://yourapp.com/callback&response_type=code&scope=openid%20profile%20email&state=xyz
    ```
-3. User Google/GitHub se login karega (choose account page)
+3. User Email / Google / GitHub se login karega
 4. Callback pe `?code=...` milega
 5. Code exchange:
    ```
    POST /api/oauth/token
-   Content-Type: application/x-www-form-urlencoded
+   grant_type=authorization_code&code=...&redirect_uri=...&client_id=...&client_secret=...
+   ```
+6. Response me `access_token` (JWT) + `bearer_token` milta hai
+7. User info: `GET /api/userinfo` with `Authorization: Bearer <token>`
 
-   grant_type=authorization_code
-   &code=...
-   &redirect_uri=...
-   &client_id=...
-   &client_secret=...
-   ```
-6. Response:
-   ```json
-   {
-     "access_token": "eyJ...",
-     "token_type": "Bearer",
-     "expires_in": 3600,
-     "bearer_token": "...",
-     "id_token": "eyJ..."
-   }
-   ```
-7. User info:
-   ```
-   GET /api/userinfo
-   Authorization: Bearer <access_token>
-   ```
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/register` | Signup (name, email, password) |
+| GET | `/api/oauth/authorize` | Start OAuth flow |
+| POST | `/api/oauth/token` | Exchange code for tokens |
+| GET | `/api/userinfo` | Get user from token |
+| GET/POST | `/api/clients` | List / create OAuth clients |
 
 ## Production notes
 
-- In-memory store is used for demo (clients/codes reset on cold start).
-- Production me Postgres / Supabase / MongoDB use karo.
-- Firebase Phone Auth & Supabase login placeholders already hain – easily add kar sakte ho.
+- Abhi in-memory store hai (demo). Cold start pe data reset ho sakta hai.
+- Production me **Postgres / Supabase / MongoDB** lagao.
+- Phone OTP / Firebase / Supabase login placeholders ready hain.
 
-## Deploy on Vercel
+## Deploy
 
-1. Push this repo
-2. Import on Vercel
-3. Add environment variables
-4. Deploy
+Repo already Vercel se linked hai. Env vars add karke redeploy karo.
 
----
-
-Made for easy multi-app login providing.
+Repo: https://github.com/kumarsumit68439-code/oauth-login-provider
